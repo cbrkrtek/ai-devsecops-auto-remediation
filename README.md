@@ -16,8 +16,7 @@
 </p>
 
 ---
-
-[Features](#-key-features) • [Architecture](#%EF%B8%8F-architecture) • [Demo](#-how-it-looks-cli-demo) • [Roadmap](#-strategic-roadmap-vision-2032) • [FAANG Benchmarks](#-enterprise-readiness)
+[The Problem](https://github.com/cbrkrtek/ai-devsecops-auto-remediation/edit/main/README.md#the-problem--the-shift) • [Features](#-key-features) • [Demo](#how-it-looks-cli-demo) • [Architecture](#%EF%B8%8F-architecture-flow) • [Benchmarks](#-enterprise-readiness) • [Roadmap](#️-strategic-roadmap-vision-2032)
 
 </div>
 
@@ -32,12 +31,12 @@ Traditional DevSecOps scanners (**Trivy, Checkov, Grype**) are great at *finding
 
 ---
 
-##  Key Features
+## ⚡ Key Features
 
-*   🛡️ **AST-Guarded Integrity:** Unlike naive AI wrappers, this engine parses your source manifests into an **Abstract Syntax Tree (AST)** before and after modification, mathematically guaranteeing no AI hallucinations enter your codebase.
-*   🔌 **Multi-Scanner Ingestion:** Native, high-performance parsers for `Trivy` (Container Images) and `Checkov` (Infrastructure-as-Code).
-*   🤖 **Local-First AI Execution:** Zero data leaks. Works out-of-the-box with localized LLMs via `Ollama` (Llama-3/Phind) or scales to OpenAI/Anthropic Enterprise APIs.
-*   🔄 **GitOps Native:** Deploys as a lightweight GitHub Action or a standalone CLI tool, spawning automated, clean Pull Requests.
+* **AST-Guarded Integrity:** Unlike naive AI wrappers, this engine parses your source manifests into an **Abstract Syntax Tree (AST)** before and after modification, mathematically guaranteeing no AI hallucinations enter your codebase.
+* **Multi-Scanner Ingestion:** Native, high-performance parsers for `Trivy` (Container Images) and `Checkov` (Infrastructure-as-Code).
+* **Local-First AI Execution:** Zero data leaks. Works out-of-the-box with localized LLMs via `Ollama` (Llama-3/Phind) or scales to OpenAI/Anthropic Enterprise APIs.
+* **GitOps Native:** Deploys as a lightweight GitHub Action or a standalone CLI tool, spawning automated, clean Pull Requests.
 
 ---
 
@@ -58,10 +57,13 @@ $ python cmd/main.py --target ./test/vulnerable.Dockerfile --scanner trivy
 [FIX]  Applying patch directly to branch!
 [DONE] Pull Request #Y created automatically. 0 vulnerabilities remaining.
 ```
-## Architecture Flow
 
-```
-graph LN
+---
+
+## 🏗️ Architecture Flow
+
+```mermaid
+graph LR
     A[📦 CI/CD Trigger / PR] --> B[🔥 Remediation Core]
     B --> C[🔍 Scanner Ingestion: Trivy/Checkov]
     C -->|Raw JSON| D[📊 AST Syntax Parser]
@@ -69,10 +71,14 @@ graph LN
     E -->|Generated Git Diff| F[🧪 Build & Syntax Validator]
     F -->|Validation Fails| E
     F -->|Validation Passes| G[🚀 Auto-Commit / Pull Request]
-    style B fill:#34495e,stroke:#3498db,stroke-width:2px
-    style E fill:#2c3e50,stroke:#f1c40f,stroke-width:2px
-    style G fill:#1ecc71,stroke:#27ae60,stroke-width:2px
+
+    style B fill:#d6eaf8,stroke:#3498db,stroke-width:2px
+    style E fill:#fdebd0,stroke:#e67e22,stroke-width:2px
+    style G fill:#d4efdf,stroke:#27ae60,stroke-width:2px
 ```
+
+---
+
 ## 📈 Enterprise Readiness
 
 This engine is architected from day one to handle planet-scale infrastructure requirements:
@@ -101,6 +107,7 @@ This engine is architected from day one to handle planet-scale infrastructure re
 ### 🔵 Phase 3: Runtime-to-Source Self Healing (2028 - 2031)
 - [ ] **eBPF Integration:** Connect live runtime anomalies (via Falco) back to static Source Code patches.
 
+---
+
 ## 📄 License
 Distributed under the Apache 2.0 License. See `LICENSE` for more information.
-<hr style="border: 0; height: 3px; background: linear-gradient(to right, #3498db, #9b59b6, #e74c3c); margin: 20px 0;">
