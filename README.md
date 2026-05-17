@@ -99,15 +99,19 @@ This engine is architected from day one to handle planet-scale infrastructure re
 - [ ] Native JSON AST parser for Trivy Dockerfile targets.
 - [ ] Deterministic prompt-engineering layer for Llama-3-8B.
 
-### 🟡 Phase 2: Orchestrated Ecosystem (Q1 2027)
+### 🟢Phase 2: Orchestrated Ecosystem (Q1 2027)
 - [ ] Enterprise GitHub Action app integration with OAuth authentication.
 - [ ] Checkov IaC (Terraform/CloudFormation) self-healing engine.
 - [ ] Automatic Semantic Versioning validation for third-party dependencies.
 
-### 🔵 Phase 3: Runtime-to-Source Self Healing (2028 - 2031)
+### 🟢 Phase 3: Runtime-to-Source Self Healing (2028 - 2031)
 - [ ] **eBPF Integration:** Connect live runtime anomalies (via Falco) back to static Source Code patches.
 
 ---
 
 ## 📄 License
 Distributed under the Apache 2.0 License. See `LICENSE` for more information.
+
+## ⚠️ Disclaimer
+
+This project is an experimental, AI-driven automation tool. Autonomous code remediation carries inherent risks of code modification errors or syntax breakdown. **Always thoroughly review and test all AI-generated pull requests in a staging/sandbox environment before deploying to production.** The author carries zero responsibility for infrastructure damage, security regressions, or production downtime.
