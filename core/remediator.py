@@ -33,25 +33,24 @@ def generate_fix(dockerfile_path: str, report_path: str) -> str:
     
     #create a promt
     prompt = f"""
-You are a Docker security expert and a DevSecOps engineer.
-Your task is to fix the vulnerabilities in the Dockerfile that were found by the Trivy scanner.
+You are a Docker security expert. Your task is to strictly fix the vulnerabilities in the Dockerfile that were found by the Trivy scanner.
 
-Dockerfile source code:
+--- SOURCE CODE OF THE DOCKERFILE ---
 {dockerfile_content}
 -------------------------------
 
-A list vulnerabilities from Trivy
+--- LIST OF VULNERABILITIES FROM TRIVY ---
 {json.dumps(vulnerabilities, indent=2, ensure_ascii=False)}
 -----------------------------------
 
-REQUIREMENTS FOR THE ANSWER:
-1. Return ONLY the corrected Dockerfile code. Start immediately with the FROM instruction.
-2. Do not write any explanations, greetings, markdown wrappers (```), or extra text.
-3. The code must be valid and ready for building.
-4. Avoid using the root user (create a secure user if necessary).
-5. Add the missing flags for apt-get if required by the report.
+STRICT RULES:
+1. Output ONLY the finished Dockerfile code. No explanations, no comments, no wrappers like ```dockerfile.
+2. To fix the 'root' vulnerability (DS-0002): create a user with the command 'RUN useradd -u 10011 appuser' BEFORE the USER instruction, and switch to it at the very end of the file: 'USER appuser'. All system commands (apt-get) should be executed under root (at the beginning of the file).
+3. To fix the apt-get vulnerability (DS-0029): BE SURE to add the '--no-install-recommends' flag immediately after 'apt-get install -y'.
+4. Don't add unnecessary folder and password settings if they weren't in the source code.
 
-Corrected Dockerfile:
+ The corrected Dockerfile is:
+
 """
     
     print("Send a request to AI (Ollama)")
