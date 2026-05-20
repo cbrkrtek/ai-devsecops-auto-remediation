@@ -1,22 +1,17 @@
-# Step 1: Update package lists
-RUN apt-get update
+FROM ubuntu:20.04
 
-# Step 2: Install necessary packages
-RUN apt-get install -y --no-install-recommends \
-    curl \
-    nginx
+# Update package list and install necessary packages without recommendations
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        curl \
+        nginx \
+        && rm -rf /var/lib/apt/lists/*
 
-# Step 3: Remove unused package lists
-RUN rm -rf /var/lib/apt/lists/*
-
-# Step 4: Create a non-root user and switch to it
-RUN useradd -u 10011 appuser && chown -R appuser:appuser /usr/share/nginx/html /etc/nginx /var/www/html
-
-# Step 5: Install system packages under the new user
+# Set a non-root user to run the container
 USER appuser
-RUN apt-get install -y \
-    curl \
-    nginx
 
-# Step 6: Configure Nginx and start it
+# Expose the required port
+EXPOSE 80
+
+# Define the command to start Nginx in the background
 CMD ["nginx", "-g", "daemon off;"]

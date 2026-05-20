@@ -49,23 +49,23 @@ def generate_fix(dockerfile_path: str, report_path: str) -> str:
     
     #create promt
     prompt = f"""
-You are a Docker security expert. Your task is to strictly fix the vulnerabilities in the Dockerfile that were found by the Trivy scanner.
+You are an expert in DevSecOps and Docker security. Your task is to modify the provided Dockerfile to fix the specific security vulnerabilities identified by the Trivy scanner.
 
---- SOURCE CODE OF THE DOCKERFILE ---
-{dockerfile_content}
--------------------------------
-
---- LIST OF VULNERABILITIES FROM TRIVY ---
+--- TARGET VULNERABILITIES TO FIX ---
 {json.dumps(vulnerabilities, indent=2, ensure_ascii=False)}
------------------------------------
+-------------------------------------
 
-STRICT RULES:
-1. Output ONLY the finished Dockerfile code. No explanations, no comments.
-2. To fix the 'root' vulnerability (DS-0002): create a user with the command 'RUN useradd -u 10011 appuser' BEFORE the USER instruction, and switch to it at the very end of the file: 'USER appuser'. All system commands (apt-get) should be executed under root (at the beginning of the file).
-3. To fix the apt-get vulnerability (DS-0029): BE SURE to add the '--no-install-recommends' flag immediately after 'apt-get install -y'.
-4. Don't add unnecessary folder and password settings if they weren't in the source code.
+--- ORIGINAL DOCKERFILE CODE ---
+{dockerfile_content}
+--------------------------------
 
-The corrected Dockerfile is:
+CRITICAL INSTRUCTIONS:
+1. Fix EVERY vulnerability listed in the 'TARGET VULNERABILITIES' section by applying industry-standard security best practices.
+2. Output ONLY the resulting corrected Dockerfile code. Do NOT include any explanations, introduction, markdown formatting, or markdown code blocks (like ```dockerfile).
+3. Ensure the modified Dockerfile is completely valid, syntactically correct, and preserves the original application's functionality (e.g., keep the same base image, exposed ports, and startup commands unless they cause a vulnerability).
+4. Order instructions logically: run system package updates/installations as 'root' first, clean up package caches to reduce image size, and switch to a secure non-root user context at the end of the file if a root execution vulnerability is reported.
+
+The corrected, secure Dockerfile is:
 """
     
     print("Send a promt to Ollama...")
