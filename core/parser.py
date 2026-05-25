@@ -3,40 +3,39 @@ import os
 
 def parse_trivy_report(report_path: str) -> list:
     if not os.path.exists(report_path):
-        raise FileNotFoundError(f"Trivy report didn't find in this path: {report_path}")
-    with open(report_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+        return []
+    try:
+        with open(report_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        return []
+        
     findings = []
-    #check results
     results = data.get("Results", [])
-    for result in results:
-        misconfigurations = result.get("Misconfigurations", [])
-        for misconf in misconfigurations:
-            severity = misconf.get("Severity")
-            # focus in HIGH and CRITICAL vulnerabilities
-            if severity in ["HIGH", "CRITICAL"]:
-                cause_metadata = misconf.get("CauseMetadata", {})
-                start_line = cause_metadata.get("StartLine", "Unknown")
-                end_line = cause_metadata.get("EndLine", "Unknown")
-                
-                finding = {
-                    "id": misconf.get("ID"),
-                    "title": misconf.get("Title"),
-                    "description": misconf.get("Description"),
-                    "message": misconf.get("Message"),
-                    "severity": severity,
-                    "start_line": start_line,
-                    "end_line": end_line
-                }
-                findings.append(finding)
+    if not results:
+        return []
 
+    for result in results:
+        for misconf in result.get("Misconfigurations", []):
+            if misconf.get("Severity") in ["HIGH", "CRITICAL"]:
+                findings.append({
+                    "id": misconf.get("ID"),
+                    "type": "SecurityVulnerability",
+                    "title": misconf.get("Title"),
+                    "message": misconf.get("Message"),
+                    "severity": misconf.get("Severity")
+                })
     return findings
 
-if __name__ == "__main__":
-    test_path = os.path.join(os.path.dirname(__file__), "../tests/trivy_report.json")
-    try:
-        results = parse_trivy_report(test_path)
-        print(f"Successfully parsed: {len(results)}")
-        print(json.dumps(results, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(f"Parse error: {e}")
+def parse_hadolint_results(hadolint_raw_data: list) -> list:
+    findings = []
+    for issue in hadolint_raw_data:
+        if issue.get("level") in ["error", "warning"]:
+            findings.append({
+                "id": issue.get("code"),
+                "type": "LinterBuildError",
+                "title": f" Line{issue.get('line')}: Error of creating/logic Dockerfile",
+                "message": issue.get("message"),
+                "severity": issue.get("level").upper()
+            })
+    return findings
