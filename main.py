@@ -2,7 +2,7 @@ import os
 import sys
 import glob
 import json
-import shutil
+import re
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'core'))
 
@@ -10,6 +10,7 @@ from core.ast_builder import build_dockerfile_ast
 from core.parser import parse_trivy_report, parse_hadolint_results
 from core.scanner import run_trivy_scan, run_hadolint_scan
 from core.client import query_local_llm
+from core.sandbox import verify_container_runtime 
 
 MAX_ITERATIONS = 5
 
@@ -17,10 +18,66 @@ def load_file_content(file_path: str) -> str:
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
+def analyze_structural_constraints(dockerfile_code: str) -> str:
+    """
+    Объективный статический анализатор базовых ограничений Linux-окружения.
+    Проверяет только две универсальные вещи:
+    1. Использование привилегированных портов (<1024) под non-root пользователем.
+    2. Хронологический порядок: переключение на USER происходит строго после его создания.
+    """
+    lines = dockerfile_code.split('\n')
+    current_user = "root"  
+    users_created = set()
+    exposed_privileged_ports = []
+    errors = []
+
+    for idx, line in enumerate(lines, 1):
+        clean_line = line.strip()
+        
+        if not clean_line or clean_line.startswith("#"):
+            continue
+            
+        if clean_line.startswith("RUN"):
+            created = re.findall(r'(?:useradd|adduser)\s+(?:-[a-zA-Z0-9/-]+\s+)*([a-zA-Z0-9_-]+)', clean_line)
+            for user in created:
+                if not user.startswith('-'):
+                    users_created.add(user)
+
+        # Фиксируем декларацию портов
+        if clean_line.startswith("EXPOSE"):
+            ports = re.findall(r'\d+', clean_line)
+            for port in ports:
+                if int(port) < 1024:
+                    exposed_privileged_ports.append(port)
+
+        if clean_line.startswith("USER"):
+            target_user = clean_line.replace("USER", "").strip()
+            
+            if target_user and target_user not in ["root", "0", "1000", "nobody"] and not target_user.isdigit():
+                if target_user not in users_created:
+                    errors.append(
+                        f"Line {idx}: Chronological violation! You attempt to switch to 'USER {target_user}', "
+                        f"but this user has not been created yet via 'RUN useradd' or 'RUN adduser' in preceding layers."
+                    )
+            current_user = target_user
+
+    if current_user != "root" and exposed_privileged_ports:
+        errors.append(
+            f"CRITICAL NETWORK PRIVILEGE VIOLATION:\n"
+            f"The Dockerfile exposes privileged ports {exposed_privileged_ports} which require root privileges to bind, "
+            f"but the final runtime execution context drops privileges to 'USER {current_user}'.\n"
+            f"FIX ACTION: Change the EXPOSE port in the Dockerfile and update your application's "
+            f"runtime configuration to use a non-privileged port (>1024, e.g., 8080 or 8443)."
+        )
+            
+    if errors:
+        return "STATIC STRUCTURE VIOLATIONS:\n" + "\n".join(errors)
+    return ""
+
 def main():
-    print("============================================================")
-    print("🔄 STARTING: Hybrid Auto-Remediation Pipeline (Trivy + Hadolint)")
-    print("============================================================")
+    print("===============================================================")
+    print("🔄 STARTING: Universal Autonomous Self-Healing Pipeline (Sandbox-Guarded)")
+    print("===============================================================")
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     source_dir = os.path.join(BASE_DIR, "tests")
@@ -34,10 +91,9 @@ def main():
 
     for input_file in dockerfiles:
         filename = os.path.basename(input_file)
-        print(f"\n🎯 TARGET: {filename}")
+        print(f"\n🎯 TARGET TARGET: {filename}")
         
         current_code = load_file_content(input_file)
-        current_ast = build_dockerfile_ast(current_code)
         is_successfully_healed = False
         
         for iteration in range(1, MAX_ITERATIONS + 1):
@@ -56,63 +112,79 @@ def main():
             linter_vulns = parse_hadolint_results(hadolint_raw)
             
             all_vulnerabilities = trivy_vulns + linter_vulns
-            print(f"  🛡️  Current issues count: {len(all_vulnerabilities)} (Trivy: {len(trivy_vulns)}, Linter: {len(linter_vulns)})")
+            print(f"  🛡️  Current issues: {len(all_vulnerabilities)} (Trivy: {len(trivy_vulns)}, Linter: {len(linter_vulns)})")
             
-            if len(all_vulnerabilities) == 0:
-                print(f"  🎉 Perfect state reached at step #{iteration}! Code is secure AND functional.")
+            structural_critique = analyze_structural_constraints(current_code)
+            
+            print("  🧪 Running sandbox runtime execution test...")
+            runtime_logs_critique = verify_container_runtime(tmp_dockerfile_path, image_tag=f"remediate_test_{iteration}")
+            
+            if len(all_vulnerabilities) == 0 and not structural_critique and not runtime_logs_critique:
+                print(f"  🎉 Perfect state reached at step #{iteration}! Container is secure and verified online.")
                 is_successfully_healed = True
                 break
                 
             if iteration == MAX_ITERATIONS:
-                print("  ⚠️  Reached maximum allowed iterations. Exiting loop.")
+                print("  ⚠️ Reached maximum allowed iterations. Exiting loop.")
                 break
+
+            try:
+                current_ast_obj = build_dockerfile_ast(current_code)
+            except Exception:
+                current_ast_obj = {"type": "Dockerfile_AST", "nodes": []}
                 
             system_instruction = (
                 "You are an advanced, autonomous DevSecOps Engineering Agent specialized in automated container remediation.\n"
-                "Your mission is to resolve security vulnerabilities and static analysis violations in Dockerfiles by applying industry-standard container hardening and strict POSIX operational logic.\n\n"
-                
+                "Your mission is to resolve security vulnerabilities, static analysis violations, and runtime operational crashes in Dockerfiles by applying industry-standard container hardening and strict POSIX file-system logic.\n\n"
                 "CONTEXT & OBJECTIVE:\n"
-                "You will receive a raw Dockerfile, its current Abstract Syntax Tree (AST), and a consolidated report of issues from security scanners (Trivy) and linters (Hadolint).\n"
-                "You must refactor the Dockerfile to eliminate ALL reported issues while simultaneously generating a precise, matching updated AST that reflects your architectural modifications.\n\n"
-                
+                "You will receive a raw Dockerfile, its current Abstract Syntax Tree (AST), static scanner issues, and real operating system stderr/crash logs from a sandbox runtime execution environment.\n"
+                "You must refactor the Dockerfile to eliminate ALL reported issues, resolve security vulnerabilities, and ensure the container process successfully initializes without permission flags or runtime crashes.\n\n"
                 "CORE ARCHITECTURAL CONSTRAINTS:\n"
                 "1. Functional Parity: Maintain the original application's core intent, multi-stage layout, environment variables, network configurations (EXPOSE), and operational entrypoints (CMD/ENTRYPOINT).\n"
-                
-                "2. STRICT INSTRUCTION ORDERING (CHRONOLOGICAL RUNTIME LOGIC):\n"
-                "   You must structure the Dockerfile layers following a logical, chronologically accurate build lifecycle:\n"
-                "   - PHASE 1 (PRIVILEGED ROOT CONTEXT): Execute all system mutations, 'apt-get/apk/yum' updates, package installations, group/user creations ('useradd/groupadd'), and filesystem permission modifications ('chown/chmod') while the builder context is still implicitly or explicitly 'root'.\n"
-                "   - PHASE 2 (CONTEXT DOWNGRADE): The 'USER <username>' directive MUST only be declared AFTER Phase 1 is completely finished. NEVER place 'USER' before the 'RUN useradd' command that creates that specific user. A user cannot be invoked or execute commands before it physically exists in /etc/passwd.\n"
-                "   - PHASE 3 (NON-PRIVILEGED CONTEXT): Place runtime configurations, WORKDIR definitions, and build artifacts copying (COPY/ADD) that belong to the application layer AFTER the 'USER' directive.\n"
-                
-                "3. Principle of Least Privilege: Enforce non-root execution targets. However, ensure that any directories the non-root user needs to read, write, or execute (e.g., Nginx cache dirs, logs, application roots) have their ownership correctly modified via 'chown -R' inside PHASE 1 BEFORE transitioning to the 'USER' context.\n"
-                "4. Layer Hygiene & Minimization: Consolidate related package operations into single, atomic 'RUN' layers. Always bundle installation directives with explicit metadata cleanup routines (e.g., removing caches, indexes, and lock files) in the exact same layer to reduce image bloating.\n"
-                "5. Supply Chain Trust: Avoid mutable image reference patterns (such as pinning strictly to 'latest' tags) where specific architecture definitions or immutability are required by security policies.\n\n"
-                
+                "2. STRICT INSTRUCTION ORDERING (Lifecycle Phases):\n"
+                "   - PHASE 1 (PRIVILEGED ROOT CONTEXT): Execute all system mutations, package installations, group/user creations, and directory permission modifications (e.g., 'chown -R user:group /path') while the execution context is 'root'.\n"
+                "   - PHASE 2 (CONTEXT DOWNGRADE): Declare the 'USER <username>' directive strictly AFTER Phase 1 is completely finalized.\n"
+                "   - PHASE 3 (NON-PRIVILEGED CONTEXT): Place runtime configurations, WORKDIR definitions, and build artifacts copying (COPY/ADD) AFTER the 'USER' directive.\n"
+                "3. Operational Viability: If the runtime crash logs indicate that the application fails to write to files or open sockets due to 'Permission Denied', you MUST add necessary 'chown' adjustments inside PHASE 1 (under root context) for those specific application directories before switching users.\n"
+                "4. Principle of Least Privilege: Enforce non-root execution targets. Avoid generic 'nobody' accounts; create application-specific system users instead.\n\n"
                 "STRICT OUTPUT SPECIFICATION:\n"
-                "You must respond exclusively with a valid, parsable JSON object containing exactly two root keys:\n"
+                "You must respond exclusively with a valid JSON object containing exactly ONE root key:\n"
                 "  - 'remediated_dockerfile': A single continuous string containing ONLY the raw, refactored, compilable Dockerfile code lines.\n"
-                "  - 'generated_ast': A structured JSON object representing the exact new Abstract Syntax Tree that matches the updated Dockerfile structure.\n"
-                "CRITICAL: Do NOT wrap the JSON or its values in markdown blocks (no triple backticks ```). Do NOT include any introductory greetings, markdown prose, annotations, or conversational footers."
+                "CRITICAL: Do NOT wrap the JSON or its values in markdown blocks (no triple backticks). Do NOT include any introductory greetings or conversational footers."
             )
             
             user_context = {
                 "loop_iteration": iteration,
-                "detected_issues_to_patch": all_vulnerabilities,
+                "static_structural_critique": structural_critique,
+                "runtime_sandbox_crash_logs": runtime_logs_critique,  
+                "detected_scanner_issues": all_vulnerabilities,
                 "current_source_code": current_code,
-                "current_ast_tree": json.loads(current_ast)
+                "current_ast_tree": current_ast_obj
             }
             
             ai_response = query_local_llm(system_instruction, json.dumps(user_context, ensure_ascii=False))
-            
             next_code = ai_response.get("remediated_dockerfile", "")
-            next_ast = ai_response.get("generated_ast", {})
             
-            if not next_code or not next_ast:
-                print("  ❌ LLM Response Format Error (Empty code or AST). Breaking loop.")
+            if not next_code:
+                print("  ❌ LLM Response Format Error (Empty code or invalid JSON structure). Breaking loop.")
+                break
+                
+            try:
+                next_ast_obj = build_dockerfile_ast(next_code)
+                if not next_ast_obj.get("nodes") or len(next_ast_obj["nodes"]) == 0:
+                    print("  ⚠️ Guardrail Warning: LLM generated structurally unparsable code. Reverting changes.")
+                    break
+                
+                has_from = any(node["instruction"] == "FROM" for node in next_ast_obj["nodes"])
+                if not has_from:
+                    print("  ⚠️ Guardrail Warning: LLM completely removed the base image ('FROM'). Rejecting modifications.")
+                    break
+                    
+            except Exception as e:
+                print(f"  ❌ Guardrail Exception: Structural AST verification failed: {e}")
                 break
                 
             current_code = next_code
-            current_ast = json.dumps(next_ast)
         
         output_file_path = os.path.join(fixed_dir, filename)
         with open(output_file_path, "w", encoding="utf-8") as f:
@@ -120,10 +192,6 @@ def main():
         
         status = "SUCCESS" if is_successfully_healed else "PARTIAL"
         print(f"✅ Processing {filename} finished with status: {status}")
-
-    if os.path.exists(tmp_dir):
-        shutil.rmtree(tmp_dir)
-    print("\n🎯 Pipeline finished execution successfully!")
 
 if __name__ == "__main__":
     main()

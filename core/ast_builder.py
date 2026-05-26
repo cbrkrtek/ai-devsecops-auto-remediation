@@ -1,7 +1,7 @@
 import json
 from dockerfile_parse import DockerfileParser
 
-def build_dockerfile_ast(file_content: str) -> str:
+def build_dockerfile_ast(file_content: str) -> dict:
     parser = DockerfileParser()
     parser.content = file_content
     
@@ -10,7 +10,7 @@ def build_dockerfile_ast(file_content: str) -> str:
         node = {
             "node_id": index,
             "instruction": item['instruction'].upper(),
-            "value": item['value'].strip()
+            "value": item['value'].strip() if item['value'] else ""
         }
         ast_nodes.append(node)
         
@@ -19,4 +19,4 @@ def build_dockerfile_ast(file_content: str) -> str:
         "length": len(ast_nodes),
         "nodes": ast_nodes
     }
-    return json.dumps(ast_tree, indent=2, ensure_ascii=False)
+    return ast_tree
