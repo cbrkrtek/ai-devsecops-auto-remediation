@@ -43,7 +43,7 @@ def parse_hadolint_results(hadolint_raw_data: list) -> list:
         return []
         
     for issue in hadolint_raw_data:
-        if issue.get("level") in ["error", "warning", "info", "style"]:
+        if issue.get("level") in ["error", "warning"]:
             findings.append({
                 "id": issue.get("code", "UNKNOWN_RULE"),
                 "type": "LinterBuildError",

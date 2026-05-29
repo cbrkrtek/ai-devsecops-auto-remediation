@@ -33,4 +33,10 @@ def query_local_llm(system_prompt: str, user_prompt: str, model_name: str = "qwe
             return json.loads(inner_json_str)
     except Exception as e:
         print(f"  ❌ Error parsing LLM response in client.py: {e}")
+        try:
+            clean_fallback = re.search(r'"remediated_dockerfile"\s*:\s*"(.*)"', inner_json_str, re.DOTALL)
+            if clean_fallback:
+                return {"remediated_dockerfile": clean_fallback.group(1)}
+        except:
+            pass
         return {}
