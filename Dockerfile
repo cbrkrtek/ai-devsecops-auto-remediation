@@ -1,3 +1,4 @@
+#The final dockerfile, which was created
 FROM ubuntu:20.04
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends     curl=7.68.0-1ubuntu2.13     nginx=1.14.0-0ubuntu1.15     && rm -rf /var/lib/apt/lists/*
