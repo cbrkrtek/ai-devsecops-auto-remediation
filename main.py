@@ -56,7 +56,7 @@ def analyze_structural_constraints(dockerfile_code: str) -> str:
         )
             
     return "\n".join(errors) if errors else ""
-
+#start
 def main():
     print("===============================================================")
     print("🔄 STARTING: Universal Autonomous Self-Healing Pipeline (While-Loop Guarded)")
