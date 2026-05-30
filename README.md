@@ -35,6 +35,8 @@ Traditional DevSecOps scanners (**Trivy, Hadolint**) are great at *finding* flaw
 * **Iterative Loop Control:** Implements a deterministic `while` loop mechanism protecting the pipeline from AI deadlocks and infinite generation cycles.
 * **Local-First AI Execution:** 100% data privacy. Works entirely offline with localized LLMs via `Ollama` (**Qwen2.5-Coder:7b**), ensuring zero code telemetry leaks to public cloud APIs.
 * **Runtime Verification & Stagnation Tracking:** Spawns automated container dry-runs in an isolated sandbox, analyzing runtime logs against static security scan differentials.
+* **Abstract Syntax Tree (AST) Guardrails:** Converts mutated Dockerfiles into structured JSON syntax trees to programmatically verify structural integrity and prevent base-image extraction or structural corruption.
+* **Dual-Validation Engine:** Combines standard industry scanners (Trivy/Hadolint) with custom chronological regex-parsing to catch micro-architectural flaws (e.g., switching to a non-root USER before that user is actually created in a RUN layer).
 
 ---
 
@@ -68,30 +70,16 @@ python main.py
 Here is the actual execution log of the framework. It showcases the closed-loop engine processing a `Dockerfile`, dynamically resolving security vulnerabilities and linter alerts step-by-step, and breaking the loop safely via the **Stagnation Guardrail**:
 ```
 PS D:\my-project-ai> python main.py
-===============================================================
-🔄 STARTING: Universal Autonomous Self-Healing Pipeline (While-Loop Guarded)
-===============================================================
-
-🎯 TARGET FILE: vulnerable.Dockerfile
-  🌀 Loop Step #1...
+🌀 Loop Step #1...
   🛡️  Current issues: 4 (Trivy: 2, Linter: 2)
-     👉 Target issues IDs to fix: ['DS-0002', 'DS-0029', 'DL3002', 'DL3008']
+      👉 Target issues IDs to fix: ['DS-0002', 'DS-0029', 'DL3002', 'DL3008']
   🧪 Running sandbox runtime execution test...
+  
   🌀 Loop Step #2...
   🛡️  Current issues: 1 (Trivy: 0, Linter: 1)
-     👉 Target issues IDs to fix: ['DL3008']
+  ⚠️ Static Structural Issues Found:
+     Line 14: Chronological violation! USER 'appuser' used before creation.
   🧪 Running sandbox runtime execution test...
-  🌀 Loop Step #3...
-  🛡️  Current issues: 0 (Trivy: 0, Linter: 0)
-  🧪 Running sandbox runtime execution test...
-  🌀 Loop Step #4...
-  🛡️  Current issues: 0 (Trivy: 0, Linter: 0)
-  🧪 Running sandbox runtime execution test...
-  🌀 Loop Step #5...
-  🛡️  Current issues: 0 (Trivy: 0, Linter: 0)
-  ⚠️ Stagnation detected (Issues count stalled at 0).
-  🎉 Security and Linting goals achieved! Accepting final state despite runtime container warnings.
-✅ Processing vulnerable.Dockerfile finished with status: SUCCESS
 ```
 
 ## 🏗️ Architecture Flow
@@ -99,14 +87,27 @@ The workflow relies on a strict hybrid verification cycle where the Python core 
 ```mermaid
 graph TD
     A[📦 Original Dockerfile] -->|Step 1: Telemetry| B[🔍 Subprocess Scanners: Trivy & Hadolint]
-    B -->|Step 2: Raw JSON Parsing| C[⚙️ Main Orchestrator: main.py]
-    C -->|Step 3: Prompt Construction| D[🧠 Local LLM: Qwen2.5-Coder via Ollama]
-    D -->|Step 4: Mutated Manifest| E[🧪 Sandbox: verify_container_runtime]
-    E -->|Runtime Logs / Feedback| C
-    C -->|Step 5: Stagnation Logic Met 0 CVE| F[🚀 Hardened Manifest Applied]
+    B -->|Step 2: Parse Issues JSON| C[⚙️ Orchestrator Core: main.py]
+    
+    C -->|Step 3: State Extraction| AST[🌳 AST Builder: Concrete Syntax Tree]
+    
+    AST -->|JSON Tree + Scanner Flaws Context| D[📝 Step 4: Build Comprehensive Prompt]
+    C -->|Telemetry Data Ingestion| D
+    
+    D -->|Single JSON Payload| LLM[🧠 Step 5: Local LLM: Qwen2.5-Coder via Ollama]
+    LLM -->|Step 6: Generated Code| Guard{🛡️ AST & Mutation Guardrails}
+    
+    Guard -->|FAIL: No FROM / Unparsable| FailBreak[❌ Terminate Iteration & Revert]
+    Guard -->|PASS: Valid Structure| Sandbox[🧪 Sandbox: verify_container_runtime]
+    
+    Sandbox -->|Runtime Crash Logs / Permission Stderr| C
+    
+    C -->|Step 7: Stagnation Trigger / 0 Flaws Met| F[🚀 Hardened Manifest Applied]
 
     style C fill:#d6eaf8,stroke:#3498db,stroke-width:2px
-    style D fill:#fdebd0,stroke:#e67e22,stroke-width:2px
+    style D fill:#ebdef0,stroke:#8e44ad,stroke-width:2px
+    style LLM fill:#fdebd0,stroke:#e67e22,stroke-width:2px
+    style Guard fill:#fabbb4,stroke:#e74c3c,stroke-width:2px
     style F fill:#d4efdf,stroke:#27ae60,stroke-width:2px
 ```
 
@@ -123,23 +124,31 @@ graph TD
 
 ## 🗺️ Strategic Roadmap
 
-### 🟢 May 2026: Local Remediation Core & Pipeline Foundations (Current Sprint)
-- [x] **Greenfield Architecture:** Designed and coded the main orchestrator (`main.py`, `scanner.py`, `client.py`) entirely from scratch.
+### 🟢 May 2026: Local Remediation Core & Pipeline Foundations (Completed)
+- [x] **Greenfield Architecture:** Designed and coded the main orchestrator (`main.py`, `scanner.py`, `client.py`) entirely from scratch with zero heavy LLM frameworks.
 - [x] **Multi-Scanner Ingestion:** Integrated native subprocess execution for both **Trivy** (security) and **Hadolint** (linting).
-- [x] **Local LLM Orchestration:** Established low-overhead API hooks into **Qwen2.5-Coder:7b** via Ollama.
+- [x] **Dockerfile AST Structural Mapping:** Implemented a concrete syntax tree parser (`ast_builder.py`) to break down mutations and safeguard core instructions like `FROM`.
 - [x] **Stagnation-Based Loop Termination:** Implemented loop-breaking heuristics to intercept runtime deadlocks when models resolve 100% of static vulnerabilities but stall on runtime app logs.
-- [x] **Sandbox Telemetry Isolation:** Built real-time container dry-run execution layers to check manifest build statuses.
+- [x] **Sandbox Telemetry Isolation:** Built real-time container dry-run execution layers (`sandbox.py`) to catch runtime crashes and permission issues.
 
-### 🟡 June 2026: AST Integration & Heavy Model Scaling
-- [ ] **Dockerfile AST Structural Mapping:** Integrating a Python concrete syntax parser to break down mutated instructions (`FROM`, `RUN`, `USER`) into an un-hallucinatable tree architecture.
-- [ ] **State Comparison Engine:** Building a core module to compare the AST structures *before* and *after* refactoring to mathematically prevent arbitrary command injections.
-- [ ] **Model Scale Expansion:** Transitioning the local inference core to specialized heavyweight models (**Qwen2.5-Coder-32B-Instruct** and **Llama-3.1-70B-Instruct**) to benchmark native systemic Linux reasoning.
+### 🟢 June 2026: Yandex Cloud Migration, Heavy Model Scaling & AST Differential Verification
+- [ ] **Cloud-Native GPU Infrastructure:** Deploy a high-performance **Yandex Compute Cloud** instance equipped with an **NVIDIA V100 (32 GB VRAM)** GPU accelerator inside an isolated VPC perimeter.
+- [ ] **Production LLM Upscaling:** Migrate the core inference engine from local `7B` models to the state-of-the-art **Qwen2.5-Coder:32b-Instruct** to resolve multi-layered non-root POSIX filesystem permissions and complex web server port mapping.
+- [ ] **Deterministic State Comparison Engine:** Develop `core/ast_comparator.py` to mathematically compute the Semantic Diff between pre-remediation and post-remediation syntax trees.
+- [ ] **Anti-Injection & Erasure Guardrails:** Implement programmatic AST interceptors to immediately reject any payload where the LLM attempts unauthorized command injections (e.g., rogue `curl`/`wget` scripts) or accidentally erases vital application build layers.
+- [ ] **Context Window Hygiene via JSON-Schema:** Restructure telemetry ingestion to strip verbose scanner metadata, passing flat, structured JSON schemas to optimize token economy and inference speed.
 
-### 🔵 Q3 2026: Multi-Distro Hardening & GitOps Native Deployment
-- [ ] **Cross-Distribution Package Management:** Mapping AST validation rules to support diverse OS package managers (`apt`, `apk`, `dnf`) to prevent multi-layer package breakdown.
-- [ ] **GitLab/GitHub Webhook Automation:** Packaging the engine into a lightweight GitOps application that automatically spawns remediation Pull Requests with embedded Markdown CVE tables on every new commit.
-- [ ] **Infrastructure-as-Code (IaC) Repair:** Extending the framework's AST engine to support `Checkov` telemetry and HashiCorp Terraform (`HCL`) configuration trees.
+### 🟢 July 2026: Microservice Containerization & Native GitOps Integration
+- [ ] **Secure Agent Containerization:** Package the orchestrator engine into a hardened, minimal Docker image following strict non-root execution targets to prevent supply-chain vulnerabilities.
+- [ ] **Yandex Container Registry Deployment:** Establish automated image build and push flows to secure enterprise cloud registries inside Yandex Cloud.
+- [ ] **Automated GitOps Webhooks:** Integrate with **Yandex Managed Service for GitLab / GitHub** to trigger autonomous remediation pipelines on every new commit, automatically generating Pull Requests with embedded markdown vulnerability closure reports.
+- [ ] **Infrastructure-as-Code (IaC) Repair Expansion:** Extend the structural AST engine to support `Checkov` or HashiCorp Terraform (`HCL`) telemetry configuration trees.
 
+### 🟢 August 2026: Empirical Benchmarking & Academic Publication Readiness
+- [ ] **Controlled Validation Dataset (50+ Manifests):** Curate a diverse enterprise benchmark dataset of vulnerable Dockerfiles across multiple domains (Web Servers, Backend Runtimes, Data Heavy Science stacks).
+- [ ] **Comparative Scaling Evaluation:** Execute rigorous stress-tests comparing local `7B` inference against cloud-hosted `32B` acceleration to map remediation success rates, loop iteration depth, and runtime deadlock probability.
+- [ ] **AST Deflector Verification:** Formally test the programmatic AST-Comparator by injecting synthetic prompt anomalies and benchmarking the engine's deterministic mitigation rate.
+- [ ] **Academic Manuscript Drafting (IMRAD Standard):** Structure and write a formal computer science research paper mapping the project's zero-framework orchestration architecture, empirical cloud benchmarks, and mathematical validation layers for submission to peer-reviewed journals (VAK/RSCI).
 ---
 
 ## 📄 License
